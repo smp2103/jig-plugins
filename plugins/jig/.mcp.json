@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "jig": {
+      "type": "http",
+      "url": "https://jig-mcp-e3xl3k4wna-du.a.run.app/mcp"
+    }
+  }
+}

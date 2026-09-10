@@ -1,0 +1,24 @@
+{
+  "name": "jig",
+  "version": "0.1.0",
+  "description": "Make Instagram carousels, reels, video ads and story shorts just by asking.",
+  "author": { "name": "Jig", "url": "https://jig.ai.kr" },
+  "homepage": "https://jig.ai.kr",
+  "keywords": ["instagram", "carousel", "reels", "shorts", "video-ads", "content"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Jig",
+    "shortDescription": "Posts, reels and shorts from one message",
+    "longDescription": "Connects Jig's tools (feed drafts, image/video/TTS generation, layered editing, rendering) and installs Jig's production skills for carousels, card news, reels, issue shorts and video ads. You sign in with your Jig account during install.",
+    "developerName": "Jig",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "defaultPrompt": [
+      "Make a 6-slide carousel comparing three iced coffees",
+      "Turn this topic into a 45-second narrated short",
+      "Make a 15-second vertical ad for this product"
+    ],
+    "brandColor": "#1677FF"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "jig",
+  "owner": { "name": "Jig", "url": "https://jig.ai.kr" },
+  "plugins": [
+    {
+      "name": "jig",
+      "source": "./plugins/jig",
+      "description": "Make Instagram carousels, reels, video ads and story shorts just by asking. Connects your AI to Jig.",
+      "category": "productivity",
+      "homepage": "https://jig.ai.kr"
+    }
+  ]
+}

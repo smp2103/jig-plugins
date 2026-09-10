@@ -1,0 +1,21 @@
+{
+  "name": "jig",
+  "displayName": "Jig",
+  "version": "0.1.0",
+  "description": "Make Instagram carousels, reels, video ads and story shorts just by asking.",
+  "author": {
+    "name": "Jig",
+    "url": "https://jig.ai.kr"
+  },
+  "homepage": "https://jig.ai.kr",
+  "keywords": [
+    "instagram",
+    "carousel",
+    "reels",
+    "shorts",
+    "video-ads",
+    "content"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
+}
