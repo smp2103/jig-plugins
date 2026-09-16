@@ -172,3 +172,49 @@ description: 디자인 코퍼스(/corpus, design_assets) 헌법 + 운용법 — 
 4. 조립 후 `apply_edit_batch` 응답의 `warnings[kind=text_overflow]` 가 실측 폭(needs Npx > box Mpx)을 준다 — 이걸로 폰트/박스를 조정한다(줄바꿈 있는 텍스트는 한 줄로 재서 과대평가함, 프리뷰로 최종 판단).
 5. 실측: 나이아신아마이드 5% vs 10% 비교 페이지를 이 방식으로 재구성했을 때 조판 재현도가 높았다. 헤드라인 폭·카드 내부 여백은 레퍼런스가 더 촘촘했다.
 - **Paperlogy-9Black 은 textFx 에서 렌더 워커가 간헐적으로 기본 폰트로 떨어뜨린다**(원인 미확인). 굵은 한글 헤드라인은 `Freesentation-8ExtraBold` 가 안정적 — 이걸 기본으로.
+
+## 10. 코퍼스 루프 — 쌓일수록 좋아지는 절반
+
+코퍼스 → 생성(apply)만 있으면 `used_count` 는 "꺼내 쓴 횟수" 지 "잘 된 횟수" 가 아니다. 이제 생성 → 코퍼스로 돌아오는 신호가 있다:
+
+```
+코퍼스 ──apply_design_asset──▶ draft   (어느 재료가 어디에 놓였는지 + 그때 스냅샷)
+   ▲                            ├─ 사람이 에디터에서 저장 → 무엇을 얼마나 고쳤나
+   │                            ├─ 렌더 성공 / 공유 링크 / 게시
+   │  sweep_corpus_outcomes — 스냅샷 vs 현재: kept / edited / removed + rendered / shared / published
+   │  quality.score ← search_design_assets 기본 정렬(sort='score')
+   └──save_design_asset(source='internal_harvest')── list_harvest_candidates
+```
+
+### 10.1 순위 읽는 법
+
+- `score` = 승인 +3 · 무수정 렌더(kept) 가장 큼 · 렌더 · 공유/게시 · 신규성 − 고쳐짐(edited) − 지워짐(removed). 카운트는 전부 log 라 한두 개가 독점 못 한다.
+- 검색 시점에만 **탐색 보너스**: 14일 안 된 미사용 재료 +0.6, 날짜·id 지터 0~0.3(동률 회전). 같은 질의도 날마다 조금 다른 순서 — 무작위가 아니라 제약 안의 회전이다.
+- `outcomes {kept, edited, removed}` 와 `edited_props`(사람이 이 재료를 놓은 뒤 가장 많이 고친 속성: `x`, `textProps.fontFamily`, `motion.enter`…)를 읽는다. **edited_props 는 교정 데이터다** — 같은 실수를 반복하지 않는다.
+- 글자·사진 교체는 edited 로 안 센다. 위치·크기·타이밍·폰트·색·모션 같은 디자인 판단만 센다.
+
+### 10.2 합성할 때 (§4 C 에 얹는 규칙)
+
+1. 상위 3개만 쓰지 않는다. 슬롯마다 **검증된 것 1 + 미검증 1** 을 후보로 두고 브리프에 맞는 쪽을 고른다. 미검증이 렌더까지 가면 그게 다음 표본이 된다.
+2. `outcomes.removed` 가 kept 보다 큰 재료는 브리프가 정확히 그걸 원할 때만.
+3. 구조는 표본에서, 표면은 이번 브리프에서. 저장 게이트의 신규성 어휘를 생성 시점에도 스스로 적용한다 — 표본 근처지만 같지 않은 지점에 선다.
+4. 자유도를 올린 만큼 판정을 세게: `preview_edit_frame`(피드) / `lint_motion` + `preview_motion_strip`(영상) 을 통과시킨 뒤 끝낸다.
+
+### 10.3 수확 — 우수사례를 코퍼스로
+
+1. `list_harvest_candidates` — 렌더·공유·게시된 draft 중 아직 수확 안 된 것. `verdict`: `kept`(Claude 가 만들었고 사람이 거의 안 고침 → 그대로 표본) · `corrected`(사람이 25% 이상 고침 → **사람이 고친 최종본이 표본**, `edits.top_changed_props` 가 틀린 지점) · `human_made`(사람이 만듦 → 취향 표본).
+2. `get_edit_draft` 로 열고 §4 A(분해) 그대로: 줄/장치마다 primitive, 락업은 component, 페이지 문법은 composition, **움직이는 락업은 kind='motion'**.
+3. `save_design_asset(..., source='internal_harvest')`. 신규성 게이트는 그대로 — 색만 다른 건 `variant_of`.
+4. 수확한 draft 는 후보에서 빠진다. 다시 렌더/공유되면 다시 후보.
+
+### 10.4 모션 재료 (kind='motion')
+
+- 영상 draft 의 mograph 레이어 / `motion.enter|exit|loop` 가 있는 레이어 묶음. 저장 시 가장 이른 startMs 가 0 이 된다. `motion_devices`·`duration_ms` 가 붙는다.
+- 축: primitive_type 은 자동 `motion`. semantic_role 은 기존 어휘, structural_pattern ∈ `sequence | stagger | reveal | loop | kinetic | count | transition`.
+- 움직이는 레이어가 1개도 없으면 저장 거부(정지면 원자/조합으로). 마감(craft) 게이트는 모션엔 안 건다.
+- 적용: `apply_design_asset(asset_id, draft_id, format_idx, at_ms)`. 피드 draft 에는 못 놓는다.
+- 템플릿 자체는 부품이고, 코퍼스에 쌓이는 건 **어떤 상황에 어떤 템플릿을 어떤 파라미터·순서·스태거로 얹었나** 하는 연출 판단이다.
+
+### 10.5 수렴 방지
+
+자기 산출물만 표본 삼으면 한 룩으로 좁아진다. `get_corpus_coverage.summary` 의 `source_internal_harvest` 대 `source_external_reference` 비율을 보고, 외부 레퍼런스를 저장할 땐 `source='external_reference'`. 루프가 도는지의 지표는 하나 — `uses_kept` 가 `uses_edited + uses_removed` 보다 커지는가.
