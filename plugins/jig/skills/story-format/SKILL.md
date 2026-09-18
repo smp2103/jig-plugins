@@ -65,6 +65,7 @@ description: "스토리형 소재 제작 — 여러 클립을 이어붙이고 TT
 5. **클립 도착 즉시(조립 전!)**: `preview_video_frame(video_id, at_ms=클립 중간)` 으로 라벨·왜곡 눈QA. 트림 계획 — 발화 클립은 도입 −0.3~0.5초 / 꼬리 +0.4~0.5초 여유를 둔 보수적 트림, 마지막 씬은 꼬리 +0.9초.
 6. **조립**: `create_edit_draft_from_clips`(재생 순서) → `set_clip_trim`(개별 호출) → `compact_clip_timeline` 1회. **이 타임라인이 이후 모든 좌표·시각의 기준**이다. 조립 후에 트림하면 자막·레이어·오디오 재타이밍이 연쇄로 터진다.
 7. **얹기**: 자막 풀커버(갭 ≤ 0.2초, 발화보다 0.3~0.5초 선행) + 캐스팅 표대로 큐별 등급 적용 + 조립형/팝 레이어 + `add_audio_layer`(나레이션 1.0, BGM 0.35~0.45).
+   **나열형 대사(A, B, C)나 화면에 대상이 없는 대사는 지시가 없어도 누끼 인서트를 넣는다** — 아래 "누끼 인서트" 절이 기본값이다.
    **디자인 레이어(상단 고정 문구·브랜드 판·고지 바)는 아래 마감 게이트를 따로 통과시킨다.**
 8. **QA(전부 통과해야 완료)**: ① 얼굴 가림 — 씬 수만큼 프레임 ② 밀도 — 자막+레이어 커버리지 갭 계산 ③ 25% 축소 가독 ④ 줄바꿈·겹침 ⑤ 캐스팅 검사(전 큐 등급 / L3 1~3개 / 배역 폰트 2종 이하 / 포맷별 크기 환산).
 
@@ -171,6 +172,39 @@ description: "스토리형 소재 제작 — 여러 클립을 이어붙이고 TT
 - **그라데이션 stop 의 알파는 rgba 색이 아니라 `opacity` 필드에** 둔다(`{color:'#060c1e', opacity:0~1}`). rgba 알파는 편집기 왕복에서 사라져 스크림이 불투명 벽이 될 수 있다.
 - **Kling `duration_seconds` 는 3/4/6/8/10/12/15 중 하나.** 5를 넘기면 거부된다. dialogue 가 있으면 서버가 대사 길이로 자동 산정한다.
 - **dialogue 프롬프트에 한숨·망설임 연기를 시키지 않는다.** "small sigh", "pause" 를 넣으면 그대로 생성돼 늘어짐이 박힌다. 발화 지시는 이 문구를 붙인다: *"delivers the line immediately and continuously — no sighing, no long pauses, no filler sounds — and stops right after finishing the line."* 이미 박힌 한숨은 재생성이 정석이고, 아까우면 같은 영상을 `add_clip` 으로 슬롯 복제해 포즈 앞뒤로 `set_clip_trim` 하는 점프컷으로 도려낸다.
+
+## 누끼 인서트 — 기본값 (지시 없어도 넣는다)
+
+영상 한 컷이 대사를 다 못 보여줄 때, 항목별 누끼(배경 없는 PNG)를 **단어가 나오는 순간에 슉슉 팝인**시켜 화면을 채운다. 2026-09-19 장염 릴스 5번 씬(커피·탄산·술)에서 실측.
+
+**트리거(하나라도 맞으면 넣는다)**
+- 대사가 나열형이다: "A, B, C" / "A·B·C도 잠시 멈춤" — 항목 1개당 누끼 1장.
+- 대사의 대상이 그 컷에 안 보인다(술 얘기인데 술이 없다).
+- **넣지 않는 경우**: 컷이 이미 그 대상을 보여준다(죽·계란·두부 트레이 위에 죽·계란·두부 누끼는 중복). 한 씬에 4장 넘게 쌓지 않는다.
+
+**타이밍(오디오 퍼스트와 같은 원칙)**
+1. 나레이션 mp3 의 무음 구간을 잰다 — `run_code` 의 `jig.silence(src)`(또는 ffmpeg `silencedetect=noise=-32dB:d=0.12`). 쉼표·마침표가 무음으로 잡힌다.
+2. 항목 단어의 시작 = 그 구절의 발화 구간을 항목 수로 등분한 지점(3항목 0.9초 구절이면 0 / +0.3 / +0.6초). 정밀 STT 는 필요 없다 — 등분 오차 0.1초는 안 보인다.
+3. `start_ms` = 단어 시작, `end_ms` = 씬 끝. 먼저 나온 항목은 남아 있고 다음 항목이 옆에 쌓인다.
+4. 모션: `set_layer_motion` `{enter:{type:'pop', easing:'spring', durationMs:420}}`. 스태거는 단어 간격(≈300ms)이 대신한다.
+5. **마지막 항목 홀드 ≥ 0.9초**. 구절이 씬 끝에 붙어 있어 못 지키면 그 씬 클립을 `set_clip_trim`(out +0.5초) → `compact_clip_timeline` → **뒤 씬의 자막·나레이션·데코·CTA·고지 문구 start/end 를 전부 +Δ** 로 밀고, 그 씬 마지막 자막 큐의 end 도 씬 끝에 맞춘다(커버리지 갭 0). 밀지 않으면 나중 레이어가 앞 씬으로 넘어온다.
+
+**배치(9:16 실측)**
+- 폭 0.22~0.30(항목 원본 비율로 height 계산: `h = w × 1080/1920 × (img_h/img_w)`), 세로 중간띠 **y 0.30~0.52** — 자막존 위, 상단 라벨 아래.
+- 3항목 x = 0.06 / 0.39 / 0.66, 2항목 x = 0.14 / 0.56. 얼굴이 있으면 얼굴 반대편 반쪽에 세로로 쌓는다.
+- 복잡한 배경(음식 테이블·탑뷰)에서 분리감은 하드 그림자로: `update_layer_box` `patch.effects = [{type:'dropShadow', params:{radius:18, x:0, y:14, color:'rgba(0,0,0,0.55)'}}]`. 흰 판·원형 배지는 넣지 않는다(스티커 느낌으로 촌스러워진다).
+
+**소재 — 우선순위대로**
+1. 사용자가 올린 누끼(`list_uploads` / `list_layer_images`)가 있으면 그것.
+2. **생성 + 키잉(기본)**: `generate_image(aspect_ratio='1:1')` 로 항목 하나만 **단색 초록(#00FF00) 배경**에 뽑고 `run_code` 로 알파를 뚫어 `jig.upload_image(..., project_id=)` → `add_image_layer(url, asset_id)`. 절차와 코드는 [references/cutout-insert.md](references/cutout-insert.md).
+   - **흰 배경으로 생성하지 않는다.** 흰 잔·은색 캔이 배경과 같은 값이라 플러드필이 물체 안으로 샌다(실측: 커피잔 윗면이 잘려 나감). 초록 배경은 흰·은색·유리 물체도 깨끗하다.
+   - 프롬프트에 "single object, centered, flat solid green background filling the frame, no shadow on the background, no text" 를 넣는다. 스타일이 한 세트로 맞는 것이 이 경로의 장점이다.
+3. 무료 검색(`search_images` → `preview_image_candidates` → `import_images_from_urls`)은 **최후 수단** — Pixabay 투명 PNG 는 만화·벡터·사진이 섞여 한 화면에 나란히 놓으면 톤이 깨진다. 쓴다면 셋 다 같은 계열(전부 벡터 또는 전부 사진)만.
+
+**함정**
+- 생성 이미지의 `public_url` 은 private 버킷이라 샌드박스에서 400 — `jig.api('/image-gen/{id}/status', method='GET')['public_url']` 의 서명 URL 로 받는다.
+- `jig.upload_image` 는 `project_id=` 없이 실패한다. 결과 `url` 은 서명 URL 이라 `add_image_layer` 에는 `?token` 앞까지의 public 형태 URL + `asset_id` 를 넘긴다(인터셉터가 재서명).
+- 컵 손잡이 구멍처럼 **테두리와 안 이어진 배경**은 플러드필이 못 지운다 → 채도 높은 초록(gd > 140)은 연결과 무관하게 배경으로 친다.
 
 ## 타임라인 밀도 QA — 퍼포먼스 소재는 꽉 차야 한다
 

@@ -175,6 +175,25 @@ description: 모션그래픽 제작 문법 — 디자이너가 After Effects 에
 - **텍스트 애니메이터**: 훅 문장은 `unit:'word', y:40, blur:10, opacity:0, easing:'easeOutBack', staggerMs:110, exit:true`. 글자 단위는 짧은 단어(≤8자)에만.
 - **이징 문자열**: AE 그래프 에디터 곡선은 `cubic-bezier(x1,y1,x2,y2)` 로 그대로. 자주 쓰는 것: 스냅 `0.2,0.8,0.2,1` · 묵직한 착지 `0.34,1.56,0.64,1` · 급감속 `0.16,1,0.3,1`.
 - **스트로크 키프레임**: 임팩트 순간 `strokeWidth 6→16` + `glowBlur 0→14`, 흐름은 `dashOffset` 행진.
+- **이펙트 스택**(2026-09-16): `update_layer_box.effects[]` — blur / glow(radius·color·intensity 1~3) / dropShadow(x·y·radius·color) / colorCorrect(brightness·contrast·saturate·hueRotate·grayscale·sepia·invert). 순서대로 filter 체인, 각각 `anim {to, durationMs, delayMs, easing, exitTo, exitMs}` — 글로우 0→24 점등, 블러 12→0 초점, 채도 0→1 흑백에서 색이 번짐. 글로우·그림자는 박스 밖으로 번진다(클리핑 없음). `clear_effects:true` 로 비운다. 예능 컷아웃엔 dropShadow `y 8, radius 0`(하드 섀도) 하나면 충분, 글로우 3겹은 여전히 금지.
+- **손그림 선**(2026-09-16): path 에 `wobble 3~6`(점 사이를 잘게 나눠 흔든 손맛, `wobbleSeed` 결정적) + `outlineColor:'#161616', outlineWidth:4`(먹 이중선). 손밑줄 = 글자 폭 박스·높이 30·`points [{0,0.4},{1,0.65}]`·노랑 굵기 12·`wobble 5`·단어가 다 뜬 뒤 `draw 420`. 집중선 = 짧은 path 9~14개를 18~30ms 스태거로 `draw 180`, 수명 0.5초. `clear_outline:true` 로 이중선 제거.
+- **애니메이터 jitter**: `animator.jitter 1.5~3` = 단위마다 다른 정지 기울기(예능 단어 팝의 삐뚤빼뚤, 등장 후에도 남는다). 예능 단어 팝 `{unit:'word', staggerMs:90, durationMs:420, scale:0.2, opacity:0, easing:'spring', jitter:2.5}`.
+- **카운터 함정**: `textProps.counter` 가 켜진 레이어는 문구가 안 보인다 — 에디터에서 사람이 문구를 "198,000원" 으로 고치면 끝값·단위가 따라가게 해 뒀고, MCP 에선 `counter.to` 를 직접 고친다.
+- **에디터와 같은 자료구조**: 위 전부가 에디터의 키프레임 섹션(⏱ 스톱워치·∿ 값 그래프·타임라인 ◆ 레인)·이펙트 스택 패널에 그대로 보인다. 사람이 그래프에서 핸들을 끌면 `cubic-bezier(...)` 로 굳는다 — 내가 넣은 값을 디자이너가 이어서 고치는 구조라, 정성껏 넣을수록 되돌아오는 정답이 는다.
+
+### 4-b. 그래픽 템플릿 — 편집 가능한 레이어 묶음 (AE 프리컴프, 2026-09-16)
+
+| | 파라미터 템플릿(§2, MOGRT식) | **그래픽 템플릿(레이어 묶음)** |
+|---|---|---|
+| 도구 | `list_mograph_templates` → `add_mograph_layer` | `list_layout_templates`(kind='graphic') → `apply_layout_template(mode:'insert', at_ms)` → `inserted_layer_ids` |
+| 정체 | 코드 조각 82종. 한 레이어, 파라미터만 바뀜 | **실제 텍스트·도형·경로 레이어 + 키프레임·이펙트·마스크·애니메이터가 풀려 들어옴** → 아무 레이어나 `update_text_layer`/`update_layer_box`/`update_path_layer` 로 고침 |
+| 언제 | 빠르게 정확한 조각(차트·링·타임라인·글리치) | 사람이 이어서 손볼 소재, 브랜드에 맞춰 바꿀 소재 |
+| 저장 | 불가 | `save_graphic_template(draft_id, name, layer_ids)` — 잘 만든 묶음을 재사용 템플릿으로. 에디터 ⚡ 첫 탭에 뜬다 |
+
+기본 제공 그래픽 템플릿 47종 — `list_layout_templates` 의 name 으로 찾는다.
+- 예능 컷아웃(먹/종이/노랑·테이프·슬램): 로어서드 · 이름/직함 / 카운터 카드 · 핵심 수치 / 키네틱 타이틀 · 훅 라인 / 배지 스탬프 / 콜아웃 · 부위 지목 / 가격표 · 정가/할인가 / 인용문 · 후기/한마디 / 진행 바 · 퍼센트 / 주의 문구 · 경고 띠 / 말풍선 · 리액션 / 체크리스트 · 3항목 / 스텝 넘버 · 01 / 비포 / 애프터 라벨 / 할인 스타버스트 · 50% / CTA 버튼 · 지금 예약 / 별점 · 4.9 리뷰 / SNS 아이디 · @핸들 / 위치 핀 · 주소 / 카운트다운 · 10초 / 랭킹 · 1위 / 질문 카드 · Q. / 예능 자막 · 2줄 키워드 / 뉴스 띠 · 속보 / 리액션 · ㅋㅋㅋㅋ / 진행 단계 · 3단계 / D-day · D-3 / 비교 · VS 두 패널 / 화살표 지목 · 여기! / 손 동그라미 · 강조 / 형광펜 강조 · 키워드 / 해시태그 · 3개 / 채팅 대화 · 2줄 / 박스 자막 · 먹 박스 / REC 타임코드 · 촬영 중 / 폰 알림 · 카드 / TOP 3 · 순위 리스트 / 전화 안내 · 예약 문의 / 더보기 ↓ · 스크롤 유도 / 페이지 · 1/5 / 구독 · 좋아요 버튼
+- 시네마·쿠튀르(먹빛/본화이트/금 헤어라인, 느린 등장): 챕터 슬레이트 / 로케이션 자막 · 시네마 / 시네마 인용 · 한 문장 / 헤어라인 콜아웃 · 쿠튀르 / 에디션 넘버 · No. 042 / 엔딩 크레딧 · 브랜드 / 인터뷰 자막 · 시네마
+- 쓰는 법: `apply_layout_template(mode:'insert', at_ms:대사 시각)` → `inserted_layer_ids` 의 텍스트를 `update_text_layer` 로 바꾼다. 카운터(카운터 카드·카운트다운·REC·진행 바)는 `counter.to` 를, 밝은 컷 위 시네마 조각은 함께 들어온 '어두운 플레이트' 불투명도를 고친다. 널 `⊕ … 축` 에 슬램이 있다.
 
 ## 5. 점검 루프 — 예쁜 것과 맞는 것은 다르다
 
