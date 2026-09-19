@@ -194,17 +194,18 @@ description: "스토리형 소재 제작 — 여러 클립을 이어붙이고 TT
 - 3항목 x = 0.06 / 0.39 / 0.66, 2항목 x = 0.14 / 0.56. 얼굴이 있으면 얼굴 반대편 반쪽에 세로로 쌓는다.
 - 복잡한 배경(음식 테이블·탑뷰)에서 분리감은 하드 그림자로: `update_layer_box` `patch.effects = [{type:'dropShadow', params:{radius:18, x:0, y:14, color:'rgba(0,0,0,0.55)'}}]`. 흰 판·원형 배지는 넣지 않는다(스티커 느낌으로 촌스러워진다).
 
-**소재 — 우선순위대로**
-1. 사용자가 올린 누끼(`list_uploads` / `list_layer_images`)가 있으면 그것.
-2. **생성 + 키잉(기본)**: `generate_image(aspect_ratio='1:1')` 로 항목 하나만 **단색 초록(#00FF00) 배경**에 뽑고 `run_code` 로 알파를 뚫어 `jig.upload_image(..., project_id=)` → `add_image_layer(url, asset_id)`. 절차와 코드는 [references/cutout-insert.md](references/cutout-insert.md).
-   - **흰 배경으로 생성하지 않는다.** 흰 잔·은색 캔이 배경과 같은 값이라 플러드필이 물체 안으로 샌다(실측: 커피잔 윗면이 잘려 나감). 초록 배경은 흰·은색·유리 물체도 깨끗하다.
-   - 프롬프트에 "single object, centered, flat solid green background filling the frame, no shadow on the background, no text" 를 넣는다. 스타일이 한 세트로 맞는 것이 이 경로의 장점이다.
-3. 무료 검색(`search_images` → `preview_image_candidates` → `import_images_from_urls`)은 **최후 수단** — Pixabay 투명 PNG 는 만화·벡터·사진이 섞여 한 화면에 나란히 놓으면 톤이 깨진다. 쓴다면 셋 다 같은 계열(전부 벡터 또는 전부 사진)만.
+**소재 — 우선순위대로(사용자 선호: 생성보다 실제 사진)**
+1. 사용자가 올린 사진·누끼(`list_uploads` / `list_layer_images`)가 있으면 그것. 배경이 있으면 2번처럼 `jig.cutout` 으로 딴다.
+2. **찾은 사진 + 배경 제거(기본)**: `search_images` → `preview_image_candidates` 로 눈으로 고른 뒤 `import_images_from_urls` 로 저장하고, `run_code` 에서 `jig.cutout(src, 'out/x_cut.png')`(rembg, 장당 ~2초) → `jig.upload_image(..., project_id=)` → `add_image_layer(url, asset_id)`. 절차와 코드는 [references/cutout-insert.md](references/cutout-insert.md).
+   - 검색어는 영어로 "장면"을 쓴다: `glass of cola with ice and lemon, no brand` / `cup of coffee on saucer`. 브랜드 로고(코카콜라·스프라이트 병)는 고르지 않는다 — 검색 상위에 많이 뜬다.
+   - 세 장을 같은 계열로 맞춘다: 전부 실사. Pixabay 의 "isolated" 사진 PNG(맥주잔 등)는 이미 누끼라 그대로 쓴다. 만화·벡터·아이콘은 실사 컷과 한 화면에 놓지 않는다.
+   - 배경이 있는 사진도 된다(카페 테이블 위 커피잔 → 잔+받침만 남음). 흰 배경 사진은 흰 물체가 사라지므로 색 키잉이 아니라 항상 `jig.cutout` 을 쓴다.
+3. **생성은 사진을 못 찾았을 때만**: `generate_image(aspect_ratio='1:1')` 로 항목 하나만 **단색 초록(#00FF00) 배경**에 뽑고 같은 `jig.cutout` 으로 딴다(초록 배경은 rembg 가 더 확실하게 분리한다). 사용자가 "생성한 티가 난다·이모지 같다" 고 반려한 적이 있으니 사진이 있으면 사진이다.
 
 **함정**
-- 생성 이미지의 `public_url` 은 private 버킷이라 샌드박스에서 400 — `jig.api('/image-gen/{id}/status', method='GET')['public_url']` 의 서명 URL 로 받는다.
+- 생성 이미지·저장한 레이어 이미지의 `public_url` 은 private 버킷이라 샌드박스에서 400 — 생성본은 `jig.api('/image-gen/{id}/status', method='GET')['public_url']`, 검색 저장본은 `import_images_from_urls` 응답의 서명 `url` 을 그대로 `jig.download` 한다.
 - `jig.upload_image` 는 `project_id=` 없이 실패한다. 결과 `url` 은 서명 URL 이라 `add_image_layer` 에는 `?token` 앞까지의 public 형태 URL + `asset_id` 를 넘긴다(인터셉터가 재서명).
-- 컵 손잡이 구멍처럼 **테두리와 안 이어진 배경**은 플러드필이 못 지운다 → 채도 높은 초록(gd > 140)은 연결과 무관하게 배경으로 친다.
+- 색 키잉(플러드필)은 컵 손잡이 구멍 같은 고립 배경을 못 지우고 흰·은색 물체가 샌다 — rembg(`jig.cutout`) 가 기본이고, 색 키잉은 rembg 가 없는 환경의 대체 경로일 뿐이다.
 
 ## 타임라인 밀도 QA — 퍼포먼스 소재는 꽉 차야 한다
 

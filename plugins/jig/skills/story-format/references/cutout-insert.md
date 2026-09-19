@@ -1,8 +1,31 @@
-# 누끼 인서트 — 생성 + 크로마키 절차 (run_code)
+# 누끼 인서트 — 사진 찾기 + 배경 제거 절차 (run_code)
 
-SKILL.md "누끼 인서트" 절의 2번 경로. Jig MCP 도구만으로 끝난다: `generate_image` → `run_code`(키잉·업로드) → `add_image_layer` → `set_layer_motion`.
+SKILL.md "누끼 인서트" 절. Jig MCP 도구만으로 끝난다: `search_images`/`import_images_from_urls`(또는 `generate_image`) → `run_code`(`jig.cutout` + 업로드) → `add_image_layer` → `set_layer_motion`.
 
-## 1. 생성
+## 0. 기본 경로 — 찾은 사진을 rembg 로 딴다
+
+```python
+import jig
+PID = '<project_id>'
+SRC = {  # import_images_from_urls 응답의 서명 url (public 형태는 400)
+  'coffee': '<signed url>', 'soda': '<signed url>', 'beer': '<signed url>',
+}
+out = {}
+for name, url in SRC.items():
+    jig.download(url, f'{name}.jpg')
+    cut = jig.cutout(f'{name}.jpg', f'out/{name}_cut.png')      # rembg isnet-general-use, bbox 크롭, ~2초
+    from PIL import Image
+    w, h = Image.open(cut).size
+    up = jig.upload_image(str(cut), f'{name} 누끼', project_id=PID)
+    out[name] = {'w': w, 'h': h, 'asset_id': up['id'], 'url': up['url'].split('?')[0]}
+print(out)
+```
+
+- 이미 투명 PNG 인 소재(Pixabay "isolated" 사진)는 `jig.cutout` 을 거쳐도 무해하다 — 그냥 통일해서 돌린다.
+- 인물은 `jig.cutout(src, dst, model='u2net_human_seg')`, 머리카락·유리 가장자리가 지저분하면 `matting=True`.
+- `out/*.png` 가 응답에 첨부되니 구멍·잔여 배경을 눈으로 확인하고 얹는다.
+
+## 1. 생성(사진을 못 찾았을 때만)
 
 항목 하나에 이미지 하나. 1:1, 단색 초록 배경.
 
@@ -13,7 +36,7 @@ generate_image(project_id, aspect_ratio='1:1', no_text_suffix=true,
 
 완료 확인은 `run_code` 안에서 `jig.api('/image-gen/{id}/status', method='GET')` 의 `status == 'completed'`. 보통 30~60초.
 
-## 2. 키잉 + 업로드 (run_code)
+## 2. 색 키잉(대체 경로 — rembg 를 못 쓸 때만)
 
 ```python
 import jig, os, numpy as np
