@@ -202,6 +202,8 @@ description: "스토리형 소재 제작 — 여러 클립을 이어붙이고 TT
    - 배경이 있는 사진도 된다(카페 테이블 위 커피잔 → 잔+받침만 남음). 흰 배경 사진은 흰 물체가 사라지므로 색 키잉이 아니라 항상 `jig.cutout` 을 쓴다.
 3. **생성은 사진을 못 찾았을 때만**: `generate_image(aspect_ratio='1:1')` 로 항목 하나만 **단색 초록(#00FF00) 배경**에 뽑고 같은 `jig.cutout` 으로 딴다(초록 배경은 rembg 가 더 확실하게 분리한다). 사용자가 "생성한 티가 난다·이모지 같다" 고 반려한 적이 있으니 사진이 있으면 사진이다.
 
+**영상이 필요할 때(B-roll·배경 컷)**: `search_videos(query, orientation='portrait', max_duration_s=20)` → `preview_image_candidates`(각 후보의 미리보기 이미지 URL)로 눈으로 고르고 → `import_videos_from_urls` → 돌려받은 id 를 `add_clip` / `create_edit_draft_from_clips` 에. 스톡 클립은 길다 — `set_clip_trim` 으로 필요한 2~4초만 쓴다. 쓸 것만 가져온다(파일마다 저장·전송 비용이 붙는다).
+
 **함정**
 - 생성 이미지·저장한 레이어 이미지의 `public_url` 은 private 버킷이라 샌드박스에서 400 — 생성본은 `jig.api('/image-gen/{id}/status', method='GET')['public_url']`, 검색 저장본은 `import_images_from_urls` 응답의 서명 `url` 을 그대로 `jig.download` 한다.
 - `jig.upload_image` 는 `project_id=` 없이 실패한다. 결과 `url` 은 서명 URL 이라 `add_image_layer` 에는 `?token` 앞까지의 public 형태 URL + `asset_id` 를 넘긴다(인터셉터가 재서명).
